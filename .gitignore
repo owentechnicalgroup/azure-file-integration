@@ -1,0 +1,49 @@
+# .NET Core
+bin/
+obj/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+.vs/
+.vscode/
+*.swp
+*.*~
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Development settings
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.template.json
+**/local.settings.json
+!**/local.settings.template.json
+
+# Logs
+logs/
+*.log
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.template.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.terraform.lock.hcl
+
+# Environment files
+.env
+.env.*
+!.env.template
+
+# IDE
+.idea/
+*.sln.iml
