@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using System.Text.Json;
+using System.Collections.Concurrent;
 
 namespace FileWatcherService;
 
@@ -12,6 +13,7 @@ public class Worker : BackgroundService
     private readonly ServiceBusClient? _serviceBusClient;
     private readonly ServiceBusSender _serviceBusSender;
     private readonly string _processedFolder;
+    private readonly ConcurrentDictionary<string, bool> _processingFiles = new();
 
     public Worker(ILogger<Worker> logger, IConfiguration configuration)
     {
@@ -125,8 +127,16 @@ public class Worker : BackgroundService
 
     private async void OnFileCreated(object sender, FileSystemEventArgs e)
     {
-        var operationId = Guid.NewGuid().ToString();
         var fileName = Path.GetFileName(e.FullPath);
+        
+        // Check if file is already being processed
+        if (!_processingFiles.TryAdd(fileName, true))
+        {
+            _logger.LogInformation("File {FileName} is already being processed", fileName);
+            return;
+        }
+
+        var operationId = Guid.NewGuid().ToString();
         
         using var scope = _logger.BeginScope(new Dictionary<string, object>
         {
@@ -182,6 +192,10 @@ public class Worker : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing file {FileName} with operation {OperationId}", fileName, operationId);
+        }
+        finally
+        {
+            _processingFiles.TryRemove(fileName, out _);
         }
     }
 

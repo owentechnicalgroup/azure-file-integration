@@ -3,6 +3,42 @@
 ## Overview
 The FileWatcher application is a distributed system that monitors a directory for new files, processes them, and sends the file data through Azure Service Bus. The application uses modern cloud-native patterns and Microsoft Entra ID (Azure AD) for security.
 
+## Getting Started
+
+### Prerequisites
+1. Azure subscription
+2. Terraform installed
+3. PowerShell 7+ installed
+4. .NET 7.0 SDK installed
+
+### Setup Steps
+1. Deploy Azure Infrastructure:
+   ```bash
+   cd terraform
+   terraform init
+   terraform apply
+   ```
+
+2. Configure Application Settings:
+   ```powershell
+   # From the terraform directory
+   .\get-settings.ps1
+   ```
+   This script will:
+   - Retrieve sensitive values from Terraform state
+   - Update both services' appsettings.json files with:
+     - Application Insights connection string
+     - Service Bus namespace and queue name
+     - Azure AD credentials (unique for each service)
+   - Preserve other settings like file paths and filters
+
+3. Create required folders:
+   ```powershell
+   # Create folders for file processing
+   mkdir C:\Temp\WatchFolder
+   mkdir C:\Temp\ReceiveFolder
+   ```
+
 ## Architecture Diagram
 ```mermaid
 graph TB

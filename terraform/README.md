@@ -13,33 +13,6 @@ This directory contains Terraform configurations to deploy the required Azure re
 1. [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
 2. [Terraform](https://www.terraform.io/downloads.html)
 3. Azure Subscription
-4. Azure Storage Account for Terraform state (see Backend Configuration below)
-
-## Backend Configuration
-
-Before running Terraform, you need to set up an Azure Storage account for the Terraform state:
-
-```bash
-# Login to Azure
-az login
-
-# Create resource group
-az group create --name terraform-state-rg --location eastus
-
-# Create storage account
-az storage account create \
-  --name <unique-storage-account-name> \
-  --resource-group terraform-state-rg \
-  --location eastus \
-  --sku Standard_LRS
-
-# Create container
-az storage container create \
-  --name tfstate \
-  --account-name <storage-account-name>
-```
-
-Then update `backend.tf` with your storage account details.
 
 ## Deployment Steps
 
