@@ -24,26 +24,6 @@ resource "azurerm_resource_group" "rg" {
   tags     = var.tags
 }
 
-# Storage Account for Terraform State
-resource "azurerm_storage_account" "tfstate" {
-  name                     = "fileintdevtfstate"  # Shortened name
-  resource_group_name      = azurerm_resource_group.rg.name
-  location                 = azurerm_resource_group.rg.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  tags                     = var.tags
-
-  blob_properties {
-    versioning_enabled = true
-  }
-}
-
-resource "azurerm_storage_container" "tfstate" {
-  name                  = "tfstate"
-  storage_account_name  = azurerm_storage_account.tfstate.name
-  container_access_type = "private"
-}
-
 # Service Bus
 resource "azurerm_servicebus_namespace" "sb" {
   name                = "${var.project_name}${var.environment}bus"
@@ -51,15 +31,6 @@ resource "azurerm_servicebus_namespace" "sb" {
   resource_group_name = azurerm_resource_group.rg.name
   sku                 = "Standard"
   tags                = var.tags
-}
-
-resource "azurerm_servicebus_queue" "queue" {
-  name         = var.queue_name
-  namespace_id = azurerm_servicebus_namespace.sb.id
-
-  partitioning_enabled    = true
-  max_size_in_megabytes  = 5120
-  default_message_ttl    = "P14D" # 14 days
 }
 
 # Azure AD Application Registration for FileWatcher
@@ -70,13 +41,13 @@ resource "azuread_application" "filewatcher" {
 
 # Create service principal for the FileWatcher application
 resource "azuread_service_principal" "filewatcher" {
-  application_id = azuread_application.filewatcher.application_id
+  client_id = azuread_application.filewatcher.client_id
   owners        = [data.azuread_client_config.current.object_id]
 }
 
 # Create client secret for FileWatcher
 resource "azuread_application_password" "filewatcher" {
-  application_object_id = azuread_application.filewatcher.object_id
+  application_id = azuread_application.filewatcher.id
   display_name         = "FileWatcher Secret"
   end_date            = "2024-12-31T23:59:59Z"
 }
@@ -89,33 +60,19 @@ resource "azuread_application" "filereceiver" {
 
 # Create service principal for the FileReceiver application
 resource "azuread_service_principal" "filereceiver" {
-  application_id = azuread_application.filereceiver.application_id
+  client_id = azuread_application.filereceiver.client_id
   owners        = [data.azuread_client_config.current.object_id]
 }
 
 # Create client secret for FileReceiver
 resource "azuread_application_password" "filereceiver" {
-  application_object_id = azuread_application.filereceiver.object_id
+  application_id = azuread_application.filereceiver.id
   display_name         = "FileReceiver Secret"
   end_date            = "2024-12-31T23:59:59Z"
 }
 
 # Get current Azure AD configuration
 data "azuread_client_config" "current" {}
-
-# Assign Service Bus Data Sender role to the FileWatcher application
-resource "azurerm_role_assignment" "servicebus_sender" {
-  scope                = azurerm_servicebus_queue.queue.id
-  role_definition_name = "Azure Service Bus Data Sender"
-  principal_id         = azuread_service_principal.filewatcher.object_id
-}
-
-# Assign Service Bus Data Receiver role to the FileReceiver application
-resource "azurerm_role_assignment" "servicebus_receiver" {
-  scope                = azurerm_servicebus_queue.queue.id
-  role_definition_name = "Azure Service Bus Data Receiver"
-  principal_id         = azuread_service_principal.filereceiver.object_id
-}
 
 # Log Analytics
 resource "azurerm_log_analytics_workspace" "law" {
@@ -137,6 +94,35 @@ resource "azurerm_application_insights" "appinsights" {
   tags                = var.tags
 }
 
+# Service Bus Queue (created after namespace)
+resource "azurerm_servicebus_queue" "queue" {
+  name         = var.queue_name
+  namespace_id = azurerm_servicebus_namespace.sb.id
+
+  partitioning_enabled    = true
+  max_size_in_megabytes  = 5120
+  default_message_ttl    = "P14D" # 14 days
+
+  depends_on = [azurerm_servicebus_namespace.sb]
+}
+
+# Role assignments (created after queue)
+resource "azurerm_role_assignment" "servicebus_sender" {
+  scope                = azurerm_servicebus_queue.queue.id
+  role_definition_name = "Azure Service Bus Data Sender"
+  principal_id         = azuread_service_principal.filewatcher.object_id
+
+  depends_on = [azurerm_servicebus_queue.queue]
+}
+
+resource "azurerm_role_assignment" "servicebus_receiver" {
+  scope                = azurerm_servicebus_queue.queue.id
+  role_definition_name = "Azure Service Bus Data Receiver"
+  principal_id         = azuread_service_principal.filereceiver.object_id
+
+  depends_on = [azurerm_servicebus_queue.queue]
+}
+
 # Outputs
 output "servicebus_namespace" {
   value = azurerm_servicebus_namespace.sb.name
@@ -156,17 +142,9 @@ output "appinsights_instrumentation_key" {
   sensitive = true
 }
 
-output "storage_account_name" {
-  value = azurerm_storage_account.tfstate.name
-}
-
-output "storage_container_name" {
-  value = azurerm_storage_container.tfstate.name
-}
-
 # FileWatcher Azure AD Application outputs
 output "filewatcher_client_id" {
-  value = azuread_application.filewatcher.application_id
+  value = azuread_application.filewatcher.client_id
 }
 
 output "filewatcher_client_secret" {
@@ -176,7 +154,7 @@ output "filewatcher_client_secret" {
 
 # FileReceiver Azure AD Application outputs
 output "filereceiver_client_id" {
-  value = azuread_application.filereceiver.application_id
+  value = azuread_application.filereceiver.client_id
 }
 
 output "filereceiver_client_secret" {
